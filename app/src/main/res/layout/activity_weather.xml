@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/weatherLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:scrollbars="none"
+    tools:context=".ui.weather.WeatherActivity">
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <include
+            android:id="@+id/nowItem"
+            layout="@layout/now"/>
+
+        <include
+            android:id="@+id/forecastItem"
+            layout="@layout/forecast"/>
+
+        <include
+            android:id="@+id/lifeIndexItem"
+            layout="@layout/life_index"/>
+
+    </LinearLayout>
+
+</ScrollView>
