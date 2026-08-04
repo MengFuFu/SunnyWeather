@@ -1,11 +1,14 @@
 package com.sunnyweather.android.ui.place
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
@@ -39,24 +42,15 @@ class PlaceFragment : Fragment() {
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
-        if (activity is MainActivity && viewModel.isPlaceSaved()) {
-            val place = viewModel.getSavedPlace()
-            val intent = Intent(context, WeatherActivity::class.java).apply {
-                putExtra("location_lng", place.location.lng)
-                putExtra("location_lat", place.location.lat)
-                putExtra("place_name", place.name)
-            }
-            startActivity(intent)
-            activity?.finish()
-            return
-        }
 
+        //初始化视图
         val layoutManager = LinearLayoutManager(activity)
         binding.recyclerView.layoutManager = layoutManager
         adapter = PlaceAdapter(this, viewModel.placeList)
         binding.recyclerView.adapter = adapter
+
         binding.searchPlaceEdit.addTextChangedListener {
-            editable ->
+                editable ->
             val content = editable.toString()
             if(content.isNotEmpty()) {
                 viewModel.searchPlaces(content)
@@ -68,8 +62,10 @@ class PlaceFragment : Fragment() {
                 adapter.notifyDataSetChanged()
             }
         }
+
+        //观察手动搜索结果
         viewModel.placeLiveData.observe(viewLifecycleOwner, Observer {
-            result ->
+                result ->
             val places = result.getOrNull()
             if(places != null) {
                 binding.recyclerView.visibility = View.VISIBLE
@@ -83,5 +79,119 @@ class PlaceFragment : Fragment() {
                 result.exceptionOrNull()?.printStackTrace()
             }
         })
+
+        //观察自动定位结果
+        viewModel.autoLocateResult.observe(viewLifecycleOwner, Observer {
+            result ->
+            val place = result.getOrNull()
+            if(place != null && activity is MainActivity) {
+                //保存并跳转天气界面
+                viewModel.savePlace(place)
+                val intent = Intent(context, WeatherActivity::class.java).apply {
+                    putExtra("location_lng", place.location.lng)
+                    putExtra("location_lat", place.location.lat)
+                    putExtra("place_name", place.name)
+                }
+                startActivity(intent)
+                activity?.finish()
+                return@Observer
+            }
+
+            // 自动定位失败（或不在 MainActivity）：降级处理
+            if(activity is MainActivity) {
+                // 只有在 MainActivity 中才执行降级（避免在 WeatherActivity 中干扰）
+                if(viewModel.isPlaceSaved()) {
+                    //有保存的城市直接跳转
+                    val savedPlace = viewModel.getSavedPlace()
+                    val intent = Intent(context, WeatherActivity::class.java).apply {
+                        putExtra("location_lng", savedPlace.location.lng)
+                        putExtra("location_lat", savedPlace.location.lat)
+                        putExtra("place_name", savedPlace.name)
+                    }
+                    startActivity(intent)
+                    activity?.finish()
+                    return@Observer
+                }
+                else {
+                    // 无保存城市且定位失败：停留在当前页面，显示具体错误
+                    val errorMsg = result.exceptionOrNull()?.message ?: "未知错误"
+                    Toast.makeText(activity, "自动定位失败：$errorMsg", Toast.LENGTH_LONG).show()
+                }
+            }
+        })
+
+        //触发自动定位（需检查定位权限），仅在 MainActivity 中
+        if(activity is MainActivity) {
+            if (hasLocationPermission()) {
+                viewModel.autoLocate()
+            } else {
+                requestLocationPermission()
+            }
+        }
+
+    }
+
+    private fun hasLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun requestLocationPermission() {
+        requestPermissions(
+            arrayOf(
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ),
+            LOCATION_PERMISSION_REQUEST_CODE
+        )
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        when (requestCode) {
+            LOCATION_PERMISSION_REQUEST_CODE -> {
+                if (grantResults.isNotEmpty() &&
+                    grantResults[0] == PackageManager.PERMISSION_GRANTED
+                ) {
+                    // 权限已授予，触发定位
+                    viewModel.autoLocate()
+                } else {
+                    // 权限被拒绝，走降级逻辑
+                    handlePermissionDenied()
+                }
+            }
+        }
+    }
+
+    private fun handlePermissionDenied() {
+        if (activity is MainActivity) {
+            if (viewModel.isPlaceSaved()) {
+                val savedPlace = viewModel.getSavedPlace()
+                val intent = Intent(context, WeatherActivity::class.java).apply {
+                    putExtra("location_lng", savedPlace.location.lng)
+                    putExtra("location_lat", savedPlace.location.lat)
+                    putExtra("place_name", savedPlace.name)
+                }
+                startActivity(intent)
+                activity?.finish()
+            } else {
+                Toast.makeText(
+                    activity, "定位权限未授予，请手动搜索城市", Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    companion object {
+        private const val LOCATION_PERMISSION_REQUEST_CODE = 1001
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        _binding = null
     }
 }

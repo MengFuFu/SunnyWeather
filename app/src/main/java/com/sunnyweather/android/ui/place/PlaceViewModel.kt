@@ -18,6 +18,13 @@ class PlaceViewModel : ViewModel() {
         Repository.searchPlaces(query)
     }
 
+    //自动定位触发源
+    private val autoLocateTrigger = MutableLiveData<Boolean>()
+    //自动定位结果
+    val autoLocateResult = autoLocateTrigger.switchMap {
+        Repository.autoLocateAndSearch()
+    }
+
     fun searchPlaces(query: String) {
         searchLiveData.value = query
     }
@@ -27,4 +34,9 @@ class PlaceViewModel : ViewModel() {
     fun getSavedPlace() = Repository.getSavedPlace()
 
     fun isPlaceSaved() = Repository.isPlaceSaved()
+
+    //触发自动定位
+    fun autoLocate() {
+        autoLocateTrigger.value = true
+    }
 }

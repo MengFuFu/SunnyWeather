@@ -8,7 +8,9 @@
     <FrameLayout
         android:id="@+id/titleLayout"
         android:layout_width="match_parent"
-        android:layout_height="70dp">
+        android:layout_height="wrap_content"
+        android:minHeight="60dp"
+        android:background="@android:color/transparent">
 
         <Button
             android:id="@+id/navBtn"

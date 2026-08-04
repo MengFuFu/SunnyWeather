@@ -2,6 +2,7 @@ package com.sunnyweather.android.logic.network
 
 import android.util.Log
 import com.sunnyweather.android.logic.model.DailyResponse
+import com.sunnyweather.android.logic.model.IpLocationResponse
 import com.sunnyweather.android.logic.model.RealtimeResponse
 import kotlinx.coroutines.delay
 import retrofit2.Call
@@ -75,5 +76,40 @@ object SunnyWeatherNetWork {
     suspend fun getRealtimeWeather(lng: String, lat: String): RealtimeResponse {
         Log.d(TAG, "getRealtimeWeather: lng=$lng, lat=$lat")
         return weatherService.getRealtimeWeather(lng, lat).await()
+    }
+
+    //高德ip服务
+    private val ipService = ServiceCreator.createAmap(IpService::class.java)
+
+    suspend fun fetchIpLocation(ip: String? = null): IpLocationResponse {
+        return ipService.getIpLocation(ip = ip).await()
+    }
+
+    //高德逆地理编码服务
+    private val amapService = ServiceCreator.createAmap(AmapService::class.java)
+
+    /**
+     * 根据经纬度查询城市名（逆地理编码），返回 city 名称字符串
+     */
+    suspend fun fetchRegeoCity(lng: Double, lat: Double): String {
+        val location = "$lng,$lat"
+        val response = amapService.getRegeo(location = location).await()
+
+        // 调试日志：打印原始响应关键字段
+        Log.d(TAG, "fetchRegeoCity response: status=${response.status}, info=${response.info}")
+        val comp = response.regeocode?.addressComponent
+        Log.d(TAG, "fetchRegeoCity addressComponent: province=${comp?.province}, city=${comp?.city}")
+
+        if (response.status != "1") {
+            throw RuntimeException("逆地理编码失败: ${response.info}")
+        }
+
+        // 城市名优先 city，为空时尝试 province（直辖市）
+        val city = comp?.city?.trim().orEmpty()
+            .ifEmpty { comp?.province?.trim().orEmpty() }
+        if (city.isEmpty()) {
+            throw RuntimeException("逆地理编码未获取到城市名 (province=${comp?.province}, city=${comp?.city})")
+        }
+        return city
     }
 }
